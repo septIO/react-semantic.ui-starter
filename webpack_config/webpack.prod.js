@@ -13,6 +13,7 @@ const ProgressPlugin = require('webpack/lib/ProgressPlugin')
 const ManifestPlugin = require('webpack-manifest-plugin')
 const OfflinePlugin = require('offline-plugin')
 const PreloadWebpackPlugin = require('preload-webpack-plugin')
+const CompressionPlugin = require('compression-webpack-plugin')
 const base = require('./webpack.base')
 const config = require('./config')
 
@@ -23,14 +24,14 @@ base.module.rules.push(
     test: /\.css$/,
     use: ExtractTextPlugin.extract({
       fallback: 'style-loader',
-      use: 'css-loader'
+      use: ['css-loader', 'postcss-loader']
     })
   },
   {
     test: /\.scss$/,
     use: ExtractTextPlugin.extract({
       fallback: 'style-loader',
-      use: ['css-loader', 'sass-loader']
+      use: ['css-loader', 'postcss-loader', 'sass-loader']
     })
   }
 )
@@ -45,21 +46,26 @@ base.plugins.push(
   new ProgressPlugin(),
   new ExtractTextPlugin('[name].[chunkhash:8].css'),
   new webpack.DefinePlugin({
-    'process.env.NODE_ENV': JSON.stringify('production')
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV)
   }),
   // remove unused css
   new PurifyCSSPlugin({
     // Give paths to parse for rules. These should be absolute!
     moduleExtensions: ['.jsx', '.html', '.js'],
     paths: glob.sync(
-      path.join(__dirname, 'common/*.jsx'),
-      path.join(__dirname, 'common/components/**/*.jsx'),
-      path.join(__dirname, 'common/containers/**/*.jsx'),
-      path.join(__dirname, 'common/containers/**/*.jsx'),
+      path.join(__dirname, 'src/common/*.jsx'),
+      path.join(__dirname, 'src/common/components/**/*.jsx'),
+      path.join(__dirname, 'src/common/containers/**/*.jsx'),
+      path.join(__dirname, 'src/common/containers/**/*.jsx'),
       path.join(__dirname, 'node_modules/semantic-ui-react/dist/**/*.js')
     )
   }),
   new OptimizeCssAssetsPlugin(),
+  // extract vendor chunks
+  new webpack.optimize.CommonsChunkPlugin({
+    name: 'vendor',
+    filename: 'vendor.[chunkhash:8].js'
+  }),
   new webpack.optimize.UglifyJsPlugin({
     sourceMap: true,
     compress: {
@@ -69,11 +75,7 @@ base.plugins.push(
       comments: false
     }
   }),
-  // extract vendor chunks
-  new webpack.optimize.CommonsChunkPlugin({
-    name: 'vendor',
-    filename: 'vendor.[chunkhash:8].js'
-  }),
+  new webpack.optimize.AggressiveMergingPlugin(),
   new PreloadWebpackPlugin({rel: 'preload', as: 'script', include: 'all'}),
   // For progressive web apps
   // create manifest
@@ -92,7 +94,8 @@ base.plugins.push(
       navigateFallbackURL: '/',
       events: true
     }
-  })
+  }),
+  new CompressionPlugin()
 )
 // minimize webpack output
 base.stats = {
